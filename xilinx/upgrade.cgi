@@ -11,7 +11,8 @@
 # ^M    <--------- extra empty line
 # -----------------------------29995809218093749221856446032--^M
 
-file=/dev/$$
+file=/tmp/$$
+pattern_test_file=`cat /tmp/pattern_test_result_file`
 
 trap atexit 0
 
@@ -21,7 +22,7 @@ atexit() {
 	rmdir $file.boot 2>/dev/null || true
 	sync
 	if [ ! $ok ]; then
-	    echo "<h1>System upgrade failed</h1>"
+	    print "<h1>System upgrade failed</h1>"
 	fi
 }
 
@@ -40,63 +41,34 @@ done
 
 mkdir $file
 cd $file
+tar zxf -
 
-error_handling()
-{
-    rm $$.tgz
-    exit 1
-}
 
-#### validity check
-cat > $$.tgz
-if [ -f $$.tgz ]
-then
-    tar ztvf $$.tgz | grep "^l" >& /dev/null
-    if [ $? -eq 0 ]
-    then
-        echo "tarball contains symbol link" >>/tmp/upgrade_new.log
-        error_handling
-    fi
-    echo "no symbol link found" >>/tmp/upgrade_new.log
+if [ ! -f ubi_info ]; then
+    echo "Incorrect firmware!!!" >> /tmp/upgrade_result
 else
-    echo "unkown error occurs, can't find tarball" >>/tmp/upgrade_new.log
-    error_handling
-fi
+    if [ ! -d /mnt/config ];then
+        mkdir /mnt/config
+    fi
 
-tar zxf $$.tgz
-rm $$.tgz
+    ubiattach /dev/ubi_ctrl -m 2
+    mount -t ubifs ubi1:rootfs /mnt/config
 
-if [ -f runme.sh ]; then
-    md5res=`md5sum runme.sh | cut -d ' ' -f 1`
-    grep -w $md5res /etc/blacklist > /dev/null 2>&1
-    mdr=$?
-    if [ $mdr -ne 0 ]; then
+    if [ ! -d /mnt/config/home/usr_config ];then
+        mkdir /mnt/config/home/usr_config
+    fi
+    cp -r /config/* /mnt/config/home/usr_config/
+    #umount /dev/mtdblock2
+    umount /mnt/config
+    ubidetach -d 1 /dev/ubi_ctrl
+
+    if [ -f runme.sh ]; then
         sh runme.sh
     else
-       echo "CANNOT USE THIS RUNME!!!" >> /tmp/upgrade_result
-    fi
-else
-    if [ -e /dev/mmcblk0p3 ]; then
-        mkdir $file.boot
-	mount /dev/mmcblk0p1 $file.boot
-	cp -rf * $file.boot/
-	umount $file.boot
-	sync
-    fi
-    if [ -e /dev/mtd8 ]; then
-	if [ -e initramfs.bin.SD ]; then
-            echo "flash romfs"
-            flash_eraseall /dev/mtd8 >/dev/null 2>&1
-            nandwrite -p /dev/mtd8 initramfs.bin.SD >/dev/null 2>&1
-	fi
-
-	if [ -e uImage.bin ]; then
-            echo "flash kernel"
-            flash_eraseall /dev/mtd7 2>/dev/null
-            nandwrite -p /dev/mtd7 uImage.bin 2>/dev/null
-        fi
+        echo "Incorrect firmware!!!!" >> /tmp/upgrade_result
     fi
 fi
+
 
 ant_result=`cat /tmp/upgrade_result`
 
@@ -122,8 +94,8 @@ cat <<-EOH
 function f_submit_reboot() {
 	setTimeout(function(){
 		window.location.href="/index.html";
-	}, 90000);
-	
+	}, 120000);
+
 	jQuery.ajax({
 		url: '/cgi-bin/reboot.cgi',
 		type: 'GET',
@@ -199,9 +171,9 @@ EOB
 
 if [ "${ant_result}" == "" ]; then
 	echo "<h2><a id=\"content\" name=\"content\">System Upgrade Successed</a></h2>"
-	echo "<fieldset class=\"cbi-section\" id=\"cbi_apply_cgminer_fieldset\" style=\"display:block\">"
+	echo "<fieldset class=\"cbi-section\" id=\"cbi_apply_bmminer_fieldset\" style=\"display:block\">"
 	echo "<img src=\"/resources/icons/loading.gif\" alt=\"Loading\" style=\"vertical-align:middle\" />"
-	echo "<span id=\"cbi-apply-cgminer-status\">Rebooting System ...<br />&nbsp;<br />(please wait for 90 seconds)</span>"
+	echo "<span id=\"cbi-apply-bmminer-status\">Rebooting System ...<br />&nbsp;<br />(please wait for 120 seconds)</span>"
 	echo "</fieldset>"
 else
 	echo "<h2><a id=\"content\" name=\"content\">System Upgrade Failed</a></h2>"
@@ -225,7 +197,7 @@ cat <<EOT
 	</div>
 	<div class="clear"></div>
 	<div style="text-align: center; bottom: 0; left: 0; height: 1.5em; font-size: 80%; margin: 0; padding: 5px 0px 2px 8px; background-color: #918ca0; width: 100%;">
-		<font style="color:#fff;">Copyright &copy; 2013-2018, Bitmain Technologies</font>
+		<font style="color:#fff;">Copyright &copy; 2013-2014, Bitmain Technologies</font>
 	</div>
 </body>
 </html>
